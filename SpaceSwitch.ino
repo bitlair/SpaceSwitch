@@ -18,7 +18,7 @@ const uint8_t inputPins[numStates] = {D1, D2}; // add pullup resistors
 boolean lastReading[numStates] = {HIGH, HIGH};
 const uint8_t LEDPins[numStates] = {D5, D6};
 const char *stateValues[numStates] = {"bitlair", "djo"};
-const char *open_state = "closed";
+const char *open_state = "open";
 const char *closed_state = "closed";
 
 const int BAUD_RATE   = 115200;                       // serial baud rate
