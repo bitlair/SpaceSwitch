@@ -18,7 +18,8 @@ const uint8_t inputPins[numStates] = {D1, D2}; // add pullup resistors
 boolean lastReading[numStates] = {HIGH, HIGH};
 const uint8_t LEDPins[numStates] = {D5, D6};
 const char *stateValues[numStates] = {"bitlair", "djo"};
-const char *default_state = "closed";
+const char *open_state = "closed";
+const char *closed_state = "closed";
 
 const int BAUD_RATE   = 115200;                       // serial baud rate
 
@@ -26,7 +27,7 @@ const int BAUD_RATE   = 115200;                       // serial baud rate
 WiFiClient espClient;
 PubSubClient client(espClient);
 const char* mqttDebugTopic = "bitlair/debug";
-const char* mqttTopic = "bitlair/switch/state"; // post closed/bitlair/djo
+const char* mqttTopic = "bitlair/switch/state"; // post /bitlair, /djo (open or closed as value)
 long lastMsg = 0;
 char msg[50];
 int value = 0;
@@ -38,7 +39,7 @@ void setup() {
   for (uint8_t i = 0; i < numStates; i++) {
     pinMode(inputPins[i], INPUT);
     pinMode(LEDPins[i], OUTPUT);
-    digitalWrite(LEDPins[i], LOW);
+    digitalWrite(LEDPins[i], !digitalRead(inputPins[i]));
   }
 
   Serial.begin(BAUD_RATE);
@@ -105,52 +106,38 @@ void reconnect() {
 
 void handleSwitches() {
   boolean recentReading[numStates];
-  boolean isChange = false;
-  boolean isClosed = true;
   for (int i = 0; i < numStates; i++) {
     recentReading[i] = digitalRead(inputPins[i]);
-    if (recentReading[i] != lastReading[i])
-      isChange = true;
-  }
-  if (isChange) {
-    char newState[50] = {0};
-    for (int i = 0; i < numStates; i++) {
-      digitalWrite(LEDPins[i], LOW);
-      if (!recentReading[i])
-        isClosed = false;
-    }
-    if (isClosed) {
-      strcpy(newState, default_state);
-    } else {
-      for (int i = 0; i < numStates; i++) {
-        if (!recentReading[i]) {
-          digitalWrite(LEDPins[i], HIGH);
-          strcpy(newState, stateValues[i]);
-          break;
-        }
-      }
-    }
-
-    Serial.print("New state: ");
-    Serial.println(newState);
-    if (client.publish(mqttTopic, newState, true)) {
-      Serial.println("MQTT publish succesful!");
-      for (int i = 0; i < numStates; i++) {
-        lastReading[i] = recentReading[i];
-      }
-    } else {
-      Serial.println("MQTT publish unsuccesful! Retrying later.");
-    }
-    client.subscribe(mqttTopic);
-  }
-
-
-  for (int i = 0; i < numStates; i++) {
     if (recentReading[i] != lastReading[i]) {
-      isChange = true;
+      // A switch is toggled
+      char newState[50] = {0}; // MQTT topic to push to
+      char newStateTopic[50] = {0}; // MQTT topic to push to
+      sprintf(newStateTopic, "%s/%s", mqttTopic, stateValues[i]);
+
+      if (!recentReading[i]) {
+        // OPEN
+        strcpy(newState, open_state);
+      } else {
+        // CLOSED
+        strcpy(newState, closed_state);
+      }
+
+      Serial.print(newStateTopic);
+      Serial.print(": ");
+      Serial.println(newState);
+    
+      if (client.publish(newStateTopic, newState, true)) {
+        Serial.println("MQTT publish succesful!");
+        lastReading[i] = recentReading[i];
+        digitalWrite(LEDPins[i], !recentReading[i]);
+        delay(1000);
+      } else {
+        Serial.println("MQTT publish unsuccesful! Retrying later.");
+        delay(5000);
+      }
+      client.subscribe(mqttTopic);
     }
   }
-
   delay(1000);
 }
 
