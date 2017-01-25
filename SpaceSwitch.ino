@@ -24,6 +24,7 @@ const char *closed_state = "closed";
 const int BAUD_RATE   = 115200;                       // serial baud rate
 
 // MQTT stuff
+char ID[9] = {0};
 WiFiClient espClient;
 PubSubClient client(espClient);
 const char* mqttDebugTopic = "bitlair/debug";
@@ -33,6 +34,9 @@ char msg[50];
 int value = 0;
 
 void setup() {
+  uint32_t chipid = ESP.getChipId();
+  snprintf(ID, sizeof(ID), "%x", chipid);
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
@@ -84,7 +88,7 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP8266Client")) {
+    if (client.connect(ID)) {
       Serial.println("connected");
       // Once connected, publish an announcement...
       snprintf (msg, 75, "%s (re)connect #%ld", projectName, value);
@@ -125,7 +129,7 @@ void handleSwitches() {
       Serial.print(newStateTopic);
       Serial.print(": ");
       Serial.println(newState);
-    
+
       if (client.publish(newStateTopic, newState, true)) {
         Serial.println("MQTT publish succesful!");
         lastReading[i] = recentReading[i];
